@@ -4,6 +4,7 @@ import App from './App'
 import './styles.css'
 import './modules.css'
 import './product.css'
+import './settings.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

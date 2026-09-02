@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 
-export type RouteId = 'dashboard' | 'sessions' | 'workflows' | 'jobs' | 'resources' | 'runtimes' | 'artifacts'
+export type RouteId = 'dashboard' | 'sessions' | 'workflows' | 'jobs' | 'resources' | 'runtimes' | 'artifacts' | 'settings' | 'profile'
 export type JobStatus = 'running' | 'queued' | 'completed' | 'failed' | 'paused'
 
 export interface ModuleDefinition {
@@ -9,6 +9,7 @@ export interface ModuleDefinition {
   section: 'create' | 'manage'
   icon: ComponentType<{ size?: number; className?: string }>
   badge?: string
+  hidden?: boolean
   component: ComponentType
 }
 
