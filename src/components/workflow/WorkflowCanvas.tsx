@@ -1,5 +1,5 @@
-import { Bot, Box, BrainCircuit, Check, ChevronDown, CircleDot, Cpu, Database, Gauge, GripHorizontal, Maximize2, Play, Plus, Rocket, Save, Search, Sparkles, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { Bot, Box, BrainCircuit, Check, ChevronDown, CircleDot, Copy, Cpu, Database, Gauge, GripHorizontal, Maximize2, Play, Plus, Rocket, Save, Search, Sparkles, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 
 type Kind = 'data' | 'model' | 'runtime' | 'compute' | 'task' | 'output'
 type Field = { key: string; label: string; type: 'text' | 'textarea' | 'select' | 'number' | 'toggle'; value: string | number | boolean; options?: string[] }
@@ -34,9 +34,13 @@ function Widget({ field, onChange }: { field: Field; onChange: (v: string | numb
   return <input type={field.type === 'number' ? 'number' : 'text'} value={String(field.value)} onChange={e => onChange(field.type === 'number' ? Number(e.target.value) : e.target.value)} />
 }
 
+function restore<T>(key: string, fallback: T): T {
+  try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback } catch { return fallback }
+}
+
 export function WorkflowCanvas({ editable = false }: { editable?: boolean }) {
-  const [nodes, setNodes] = useState(seeds)
-  const [edges, setEdges] = useState(seedEdges)
+  const [nodes, setNodes] = useState<Node[]>(() => restore('nexus-flow-nodes', seeds))
+  const [edges, setEdges] = useState<Edge[]>(() => restore('nexus-flow-edges', seedEdges))
   const [selectedId, setSelectedId] = useState('train')
   const [connecting, setConnecting] = useState<string | null>(null)
   const [zoom, setZoom] = useState(editable ? .68 : .78)
@@ -60,6 +64,21 @@ export function WorkflowCanvas({ editable = false }: { editable?: boolean }) {
   const addNode = (item: typeof library[number]) => { const id = `${item.kind}-${Date.now()}`; const fields: Field[] = item.kind === 'model' ? [{ key: 'model', label: '模型', type: 'select', value: models[0], options: models }] : item.kind === 'runtime' ? [{ key: 'runtime', label: 'Runtime', type: 'select', value: runtimes[0], options: runtimes }] : item.kind === 'compute' ? [{ key: 'gpu', label: 'GPU 规格', type: 'select', value: 'Auto · ≥24GB', options: ['Auto · ≥24GB', 'RTX PRO 6000 · 96GB'] }] : [{ key: 'name', label: '名称', type: 'text', value: item.title }]; setNodes(v => [...v, { id, kind: item.kind, title: item.title, subtitle: item.subtitle, x: 580, y: 360, inputs: item.kind === 'data' || item.kind === 'model' || item.kind === 'compute' ? [] : ['INPUT'], outputs: item.kind === 'output' ? [] : ['OUTPUT'], fields, state: 'ready' }]); setSelectedId(id); setSaved(false) }
   const port = (node: Node, side: 'in' | 'out') => { if (side === 'out') return setConnecting(connecting === node.id ? null : node.id); if (connecting && connecting !== node.id) { setEdges(v => [...v, { from: connecting, to: node.id }]); setConnecting(null); setSaved(false) } }
   const fit = () => { setZoom(.68); setPan({ x: 18, y: 18 }) }
+  const removeNode = (id: string) => { setNodes(v => v.filter(node => node.id !== id)); setEdges(v => v.filter(edge => edge.from !== id && edge.to !== id)); setSelectedId(''); setSaved(false) }
+  const duplicateNode = (node: Node) => { const id = `${node.kind}-${Date.now()}`; setNodes(v => [...v, { ...node, id, title: `${node.title} Copy`, x: node.x + 42, y: node.y + 42, fields: node.fields.map(field => ({ ...field, options: field.options ? [...field.options] : undefined })), state: 'ready' }]); setSelectedId(id); setSaved(false) }
+  const updateMeta = (key: 'title' | 'subtitle', value: string) => { if (!selected) return; setNodes(v => v.map(node => node.id === selected.id ? { ...node, [key]: value } : node)); setSaved(false) }
+  const addCustomField = () => { if (!selected) return; const index = selected.fields.length + 1; setNodes(v => v.map(node => node.id === selected.id ? { ...node, fields: [...node.fields, { key: `custom-${Date.now()}`, label: `自定义参数 ${index}`, type: 'text', value: '' }] } : node)); setSaved(false) }
+
+  useEffect(() => { localStorage.setItem('nexus-flow-nodes', JSON.stringify(nodes)); localStorage.setItem('nexus-flow-edges', JSON.stringify(edges)) }, [nodes, edges])
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement
+      if (target.matches('input, textarea, select') || !selectedId) return
+      if (event.key === 'Delete' || event.key === 'Backspace') removeNode(selectedId)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedId])
 
   return <section className={`flow-studio ${editable ? 'is-editable' : ''}`}>
     <div className="flow-toolbar"><div><span className="live-dot" /> <strong>Qwen3 微调与部署</strong><em>{nodes.length} nodes · {edges.length} links</em></div><div><button><Sparkles /> Agent 生成</button><button onClick={() => setSaved(true)}>{saved ? <Check /> : <Save />} {saved ? '已保存' : '保存版本'}</button><button className="run-flow" onClick={() => setRunning(v => !v)}>{running ? <CircleDot /> : <Play />} {running ? '运行中 24%' : '运行工作流'}</button></div></div>
@@ -74,7 +93,7 @@ export function WorkflowCanvas({ editable = false }: { editable?: boolean }) {
         <div className="flow-minimap canvas-ui">{nodes.map(n => <i key={n.id} style={{ left: `${n.x / 15}%`, top: `${n.y / 9}%` }} />)}</div>
         {running && <div className="run-console canvas-ui"><span><CircleDot /> RUN #NF-2084</span><strong>正在执行 Unsloth QLoRA</strong><em>GPU 91% · VRAM 42.6 / 96 GB · ETA 1h 42m</em><i><b /></i></div>}
       </div>
-      {editable && selected && <aside className="node-config"><header><div><span>节点配置</span><small>NODE INSPECTOR</small></div><button onClick={() => setSelectedId('')}><X /></button></header><div className="config-node-title"><i className={selected.kind}>{(() => { const I = icons[selected.kind]; return <I /> })()}</i><div><strong>{selected.title}</strong><small>{selected.subtitle} · {selected.id}</small></div></div><nav><button className="active">参数</button><button>输入/输出</button><button>文档</button></nav><div className="config-scroll"><section><span>节点参数</span>{selected.fields.map(field => <label key={field.key}><b>{field.label}</b><Widget field={field} onChange={v => change(selected.id, field.key, v)} /></label>)}</section><section><span>执行设置</span><label><b>执行策略</b><select defaultValue="agent"><option value="agent">Agent 托管</option><option value="manual">手动执行</option></select></label><label><b>失败策略</b><select defaultValue="retry"><option value="retry">诊断并重试</option><option value="stop">立即停止</option></select></label></section>{selected.kind === 'compute' && <div className="cost-card"><Cpu /><div><strong>预计 ¥8.6 / 小时</strong><small>队列等待约 2 分钟</small></div></div>}</div><footer><button onClick={() => { if (!seeds.some(n => n.id === selected.id)) setNodes(v => v.filter(n => n.id !== selected.id)) }}><Trash2 /> 删除</button><button onClick={() => setSaved(true)}><Save /> 应用配置</button></footer></aside>}
+      {editable && selected && <aside className="node-config"><header><div><span>节点配置</span><small>NODE INSPECTOR</small></div><button onClick={() => setSelectedId('')}><X /></button></header><div className="config-node-title"><i className={selected.kind}>{(() => { const I = icons[selected.kind]; return <I /> })()}</i><div><strong>{selected.title}</strong><small>{selected.subtitle} · {selected.id}</small></div></div><nav><button className="active">参数</button><button>输入/输出</button><button>文档</button></nav><div className="config-scroll"><section className="node-identity-fields"><span>节点信息</span><label><b>节点名称</b><input value={selected.title} onChange={event => updateMeta('title', event.target.value)} /></label><label><b>节点说明</b><input value={selected.subtitle} onChange={event => updateMeta('subtitle', event.target.value)} /></label></section><section><span>节点参数</span>{selected.fields.map(field => <label key={field.key}><b>{field.label}</b><Widget field={field} onChange={v => change(selected.id, field.key, v)} /></label>)}<button className="add-custom-field" onClick={addCustomField}><Plus /> 新增自定义参数</button></section><section><span>执行设置</span><label><b>执行策略</b><select defaultValue="agent"><option value="agent">Agent 托管</option><option value="manual">手动执行</option></select></label><label><b>失败策略</b><select defaultValue="retry"><option value="retry">诊断并重试</option><option value="stop">立即停止</option></select></label></section>{selected.kind === 'compute' && <div className="cost-card"><Cpu /><div><strong>预计 ¥8.6 / 小时</strong><small>队列等待约 2 分钟</small></div></div>}</div><footer><button title="删除节点（Delete）" onClick={() => removeNode(selected.id)}><Trash2 /> 删除</button><button title="复制节点" onClick={() => duplicateNode(selected)}><Copy /> 复制</button><button onClick={() => setSaved(true)}><Save /> 应用</button></footer></aside>}
     </div>
     {editable && <div className="flow-status"><span><i /> Kueue connected</span><span>GPU 配额 8 / 12</span><span>预计费用 ¥20.64</span><button><Rocket /> 发布为应用 / API</button></div>}
   </section>
