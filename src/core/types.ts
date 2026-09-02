@@ -6,7 +6,7 @@ export type JobStatus = 'running' | 'queued' | 'completed' | 'failed' | 'paused'
 export interface ModuleDefinition {
   id: RouteId
   label: string
-  section: 'workspace' | 'platform'
+  section: 'create' | 'manage'
   icon: ComponentType<{ size?: number; className?: string }>
   badge?: string
   component: ComponentType

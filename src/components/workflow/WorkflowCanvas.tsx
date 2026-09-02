@@ -1,400 +1,81 @@
-import {
-  Box,
-  BrainCircuit,
-  Check,
-  CircleDot,
-  Cpu,
-  Database,
-  Gauge,
-  GitBranch,
-  GripHorizontal,
-  Maximize2,
-  MoreHorizontal,
-  Plus,
-  Save,
-  Search,
-  Sparkles,
-  Trash2,
-  X,
-} from 'lucide-react'
-import { type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { Bot, Box, BrainCircuit, Check, ChevronDown, CircleDot, Cpu, Database, Gauge, GripHorizontal, Maximize2, Play, Plus, Rocket, Save, Search, Sparkles, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 
-type NodeKind = 'input' | 'runtime' | 'compute' | 'task' | 'output'
-type FieldKind = 'text' | 'textarea' | 'select' | 'number' | 'range' | 'toggle'
+type Kind = 'data' | 'model' | 'runtime' | 'compute' | 'task' | 'output'
+type Field = { key: string; label: string; type: 'text' | 'textarea' | 'select' | 'number' | 'toggle'; value: string | number | boolean; options?: string[] }
+type Node = { id: string; kind: Kind; title: string; subtitle: string; x: number; y: number; inputs: string[]; outputs: string[]; fields: Field[]; state?: 'ready' | 'running' | 'queued' }
+type Edge = { from: string; to: string }
 
-type NodeField = {
-  key: string
-  label: string
-  kind: FieldKind
-  value: string | number | boolean
-  options?: string[]
-  min?: number
-  max?: number
-  step?: number
-  placeholder?: string
-}
+const icons = { data: Database, model: BrainCircuit, runtime: Bot, compute: Cpu, task: Gauge, output: Box }
+const models = ['Qwen3-8B', 'Qwen3-14B', 'DeepSeek-R1-Distill-7B', 'Llama-3.1-8B-Instruct']
+const runtimes = ['Unsloth 2026.8', 'PyTorch 2.8 CUDA', 'vLLM 0.10', 'Isaac Lab 2.3', 'ComfyUI Stable']
 
-type StudioNode = {
-  id: string
-  type: NodeKind
-  title: string
-  subtitle: string
-  x: number
-  y: number
-  status?: 'ready' | 'running' | 'queued'
-  inputs: string[]
-  outputs: string[]
-  fields: NodeField[]
-}
-
-type Connection = { id: string; from: string; to: string }
-
-const MODEL_OPTIONS = [
-  'Qwen3-8B',
-  'Qwen3-14B',
-  'DeepSeek-R1-Distill-Qwen-7B',
-  'Llama-3.1-8B-Instruct',
+const seeds: Node[] = [
+  { id: 'data', kind: 'data', title: '训练数据集', subtitle: 'Dataset Input', x: 36, y: 54, inputs: [], outputs: ['DATASET'], fields: [{ key: 'path', label: '数据路径', type: 'text', value: '/data/train.jsonl' }, { key: 'split', label: '数据切分', type: 'select', value: 'train', options: ['train', 'validation', 'test'] }], state: 'ready' },
+  { id: 'model', kind: 'model', title: '加载基础模型', subtitle: 'Model Loader', x: 36, y: 270, inputs: [], outputs: ['MODEL', 'TOKENIZER'], fields: [{ key: 'model', label: '模型', type: 'select', value: 'Qwen3-8B', options: models }, { key: 'precision', label: '精度', type: 'select', value: '4-bit NF4', options: ['BF16', 'FP16', '4-bit NF4'] }], state: 'ready' },
+  { id: 'prompt', kind: 'data', title: '提示词模板', subtitle: 'Prompt Template', x: 36, y: 486, inputs: ['TOKENIZER'], outputs: ['PROMPT'], fields: [{ key: 'system', label: '系统提示词', type: 'textarea', value: '你是一名专业、可靠的 AI 助手。' }, { key: 'template', label: '用户模板', type: 'textarea', value: '{{ instruction }}\n\n{{ response }}' }], state: 'ready' },
+  { id: 'train', kind: 'runtime', title: 'Unsloth QLoRA', subtitle: 'Training Runtime', x: 365, y: 155, inputs: ['MODEL', 'DATASET', 'PROMPT', 'GPU'], outputs: ['ADAPTER'], fields: [{ key: 'runtime', label: 'Runtime', type: 'select', value: 'Unsloth 2026.8', options: runtimes }, { key: 'rank', label: 'LoRA Rank', type: 'number', value: 32 }, { key: 'epoch', label: '训练轮次', type: 'number', value: 3 }, { key: 'checkpoint', label: '梯度检查点', type: 'toggle', value: true }], state: 'running' },
+  { id: 'gpu', kind: 'compute', title: 'GPU 算力', subtitle: 'Kubernetes Compute', x: 365, y: 488, inputs: [], outputs: ['GPU'], fields: [{ key: 'gpu', label: 'GPU 规格', type: 'select', value: 'RTX PRO 6000 · 96GB', options: ['Auto · ≥24GB', 'RTX 4090 · 24GB', 'RTX PRO 6000 · 96GB', 'NVIDIA H200 · 141GB'] }, { key: 'count', label: 'GPU 数量', type: 'number', value: 1 }, { key: 'queue', label: '队列', type: 'select', value: 'Normal', options: ['Low', 'Normal', 'High'] }], state: 'running' },
+  { id: 'eval', kind: 'task', title: '模型评测', subtitle: 'Evaluation', x: 710, y: 155, inputs: ['MODEL'], outputs: ['SCORE'], fields: [{ key: 'benchmark', label: '评测集', type: 'select', value: 'MMLU + C-Eval', options: ['MMLU + C-Eval', 'GSM8K', 'Custom'] }, { key: 'samples', label: '样本数', type: 'number', value: 1000 }], state: 'queued' },
+  { id: 'serve', kind: 'runtime', title: 'vLLM 推理服务', subtitle: 'Model Serving', x: 1015, y: 155, inputs: ['MODEL', 'SCORE'], outputs: ['ENDPOINT'], fields: [{ key: 'runtime', label: 'Runtime', type: 'select', value: 'vLLM 0.10', options: runtimes }, { key: 'replica', label: '副本数', type: 'number', value: 1 }], state: 'queued' },
+  { id: 'output', kind: 'output', title: '发布产物', subtitle: 'Artifacts & API', x: 1015, y: 430, inputs: ['ENDPOINT'], outputs: [], fields: [{ key: 'name', label: '模型名称', type: 'text', value: 'qwen3-support-v1' }, { key: 'visibility', label: '可见性', type: 'select', value: '私有', options: ['私有', '团队', '公开'] }], state: 'queued' },
+]
+const seedEdges: Edge[] = [{ from: 'data', to: 'train' }, { from: 'model', to: 'prompt' }, { from: 'model', to: 'train' }, { from: 'prompt', to: 'train' }, { from: 'gpu', to: 'train' }, { from: 'train', to: 'eval' }, { from: 'eval', to: 'serve' }, { from: 'serve', to: 'output' }]
+const library: Array<{ kind: Kind; title: string; subtitle: string; group: string }> = [
+  { kind: 'model', title: '加载模型', subtitle: 'Hugging Face / Registry', group: '模型' }, { kind: 'data', title: '数据集', subtitle: 'Dataset / Object Storage', group: '输入' }, { kind: 'data', title: '提示词', subtitle: 'Prompt / Variables', group: '输入' },
+  { kind: 'runtime', title: '训练 Runtime', subtitle: 'Unsloth / PyTorch', group: 'Runtime' }, { kind: 'runtime', title: '推理 Runtime', subtitle: 'vLLM / SGLang', group: 'Runtime' }, { kind: 'runtime', title: 'Isaac 仿真', subtitle: 'Isaac Sim / Lab', group: 'Runtime' },
+  { kind: 'compute', title: 'GPU 算力', subtitle: 'Kubernetes / Kueue', group: '算力' }, { kind: 'task', title: '模型评测', subtitle: 'Benchmark / Guardrail', group: '处理' }, { kind: 'output', title: '发布 API', subtitle: 'Endpoint / Artifact', group: '输出' },
 ]
 
-const initialNodes: StudioNode[] = [
-  {
-    id: 'dataset', type: 'input', title: 'Dataset', subtitle: '训练数据输入', x: 28, y: 55, status: 'ready',
-    inputs: [], outputs: ['DATASET'], fields: [
-      { key: 'path', label: 'Dataset path', kind: 'text', value: '/data/train.jsonl' },
-      { key: 'split', label: 'Split', kind: 'select', value: 'train', options: ['train', 'validation', 'test'] },
-    ],
-  },
-  {
-    id: 'model', type: 'input', title: 'Load Model', subtitle: '基础模型', x: 28, y: 245, status: 'ready',
-    inputs: [], outputs: ['MODEL', 'TOKENIZER'], fields: [
-      { key: 'model', label: 'Model', kind: 'select', value: 'Qwen3-8B', options: MODEL_OPTIONS },
-      { key: 'precision', label: 'Precision', kind: 'select', value: 'BF16', options: ['BF16', 'FP16', '4-bit NF4'] },
-    ],
-  },
-  {
-    id: 'prompt', type: 'input', title: 'Prompt Template', subtitle: '训练提示词', x: 28, y: 455, status: 'ready',
-    inputs: ['TOKENIZER'], outputs: ['PROMPT'], fields: [
-      { key: 'system', label: 'System prompt', kind: 'textarea', value: 'You are a helpful AI assistant.', placeholder: '输入系统提示词…' },
-      { key: 'template', label: 'User template', kind: 'textarea', value: '### Instruction\n{{ instruction }}\n\n### Response\n{{ response }}', placeholder: '支持 {{ variable }} 变量' },
-    ],
-  },
-  {
-    id: 'train', type: 'runtime', title: 'Unsloth QLoRA', subtitle: '训练 Runtime', x: 330, y: 165, status: 'running',
-    inputs: ['MODEL', 'DATASET', 'PROMPT', 'COMPUTE'], outputs: ['ADAPTER'], fields: [
-      { key: 'runtime', label: 'Runtime', kind: 'select', value: 'Unsloth QLoRA', options: ['Unsloth QLoRA', 'Transformers LoRA', 'Full Fine-tuning'] },
-      { key: 'rank', label: 'LoRA rank', kind: 'number', value: 32, min: 4, max: 256, step: 4 },
-      { key: 'epochs', label: 'Epochs', kind: 'number', value: 3, min: 1, max: 20, step: 1 },
-      { key: 'lr', label: 'Learning rate', kind: 'text', value: '2e-4' },
-      { key: 'checkpointing', label: 'Gradient checkpointing', kind: 'toggle', value: true },
-    ],
-  },
-  {
-    id: 'compute', type: 'compute', title: 'GPU Compute', subtitle: 'Kubernetes 资源', x: 330, y: 470, status: 'running',
-    inputs: [], outputs: ['COMPUTE'], fields: [
-      { key: 'gpu', label: 'GPU model', kind: 'select', value: 'RTX PRO 6000 · 96GB', options: ['Auto · ≥24GB', 'RTX 4090 · 24GB', 'RTX PRO 6000 · 96GB', 'NVIDIA H200 · 141GB'] },
-      { key: 'count', label: 'GPU count', kind: 'number', value: 1, min: 1, max: 8, step: 1 },
-      { key: 'queue', label: 'Queue priority', kind: 'select', value: 'Normal', options: ['Low', 'Normal', 'High'] },
-    ],
-  },
-  {
-    id: 'eval', type: 'task', title: 'Evaluate', subtitle: '模型评测', x: 645, y: 165, status: 'queued',
-    inputs: ['MODEL'], outputs: ['SCORE'], fields: [
-      { key: 'benchmark', label: 'Benchmark', kind: 'select', value: 'MMLU + C-Eval', options: ['MMLU + C-Eval', 'GSM8K', 'Custom evaluator'] },
-      { key: 'samples', label: 'Max samples', kind: 'number', value: 1000, min: 100, max: 10000, step: 100 },
-    ],
-  },
-  {
-    id: 'export', type: 'output', title: 'Export Model', subtitle: '交付产物', x: 930, y: 165, status: 'queued',
-    inputs: ['MODEL', 'SCORE'], outputs: ['ARTIFACT'], fields: [
-      { key: 'format', label: 'Format', kind: 'select', value: 'GGUF', options: ['GGUF', 'Safetensors', 'ONNX'] },
-      { key: 'quant', label: 'Quantization', kind: 'select', value: 'Q4_K_M', options: ['Q4_K_M', 'Q5_K_M', 'Q8_0', 'None'] },
-    ],
-  },
-]
-
-const initialConnections: Connection[] = [
-  { id: 'dataset-train', from: 'dataset', to: 'train' },
-  { id: 'model-prompt', from: 'model', to: 'prompt' },
-  { id: 'model-train', from: 'model', to: 'train' },
-  { id: 'prompt-train', from: 'prompt', to: 'train' },
-  { id: 'compute-train', from: 'compute', to: 'train' },
-  { id: 'train-eval', from: 'train', to: 'eval' },
-  { id: 'eval-export', from: 'eval', to: 'export' },
-]
-
-const nodeTemplates: Omit<StudioNode, 'id' | 'x' | 'y'>[] = [
-  { type: 'input', title: 'Prompt Template', subtitle: '文本 / 动态提示词', status: 'ready', inputs: [], outputs: ['PROMPT'], fields: [{ key: 'prompt', label: 'Prompt', kind: 'textarea', value: '', placeholder: '输入提示词，支持 {{ variable }}…' }] },
-  { type: 'input', title: 'Load Model', subtitle: '模型与精度', status: 'ready', inputs: [], outputs: ['MODEL'], fields: [{ key: 'model', label: 'Model', kind: 'select', value: MODEL_OPTIONS[0], options: MODEL_OPTIONS }] },
-  { type: 'runtime', title: 'Runtime', subtitle: '训练 / 推理环境', status: 'ready', inputs: ['INPUT'], outputs: ['OUTPUT'], fields: [{ key: 'runtime', label: 'Runtime', kind: 'select', value: 'PyTorch CUDA', options: ['PyTorch CUDA', 'Unsloth QLoRA', 'Isaac Lab', 'vLLM'] }] },
-  { type: 'compute', title: 'GPU Compute', subtitle: '算力约束', status: 'ready', inputs: [], outputs: ['COMPUTE'], fields: [{ key: 'gpu', label: 'GPU', kind: 'select', value: 'Auto · ≥24GB', options: ['Auto · ≥24GB', 'RTX 4090 · 24GB', 'RTX PRO 6000 · 96GB'] }] },
-  { type: 'task', title: 'Evaluation', subtitle: '评测任务', status: 'ready', inputs: ['MODEL'], outputs: ['SCORE'], fields: [{ key: 'benchmark', label: 'Benchmark', kind: 'text', value: 'MMLU' }] },
-  { type: 'output', title: 'Export', subtitle: '模型产物', status: 'ready', inputs: ['MODEL'], outputs: ['ARTIFACT'], fields: [{ key: 'format', label: 'Format', kind: 'select', value: 'Safetensors', options: ['Safetensors', 'GGUF', 'ONNX'] }] },
-]
-
-const icons = { input: Database, runtime: BrainCircuit, compute: Cpu, task: Gauge, output: Box }
-
-function fieldSummary(field: NodeField) {
-  if (typeof field.value === 'boolean') return field.value ? 'Enabled' : 'Disabled'
-  return String(field.value)
-}
-
-function InlineWidget({ field, onChange }: { field: NodeField; onChange: (value: string | number | boolean) => void }) {
-  const stop = (event: ReactPointerEvent) => event.stopPropagation()
-  if (field.kind === 'textarea') return <textarea value={String(field.value)} placeholder={field.placeholder} onPointerDown={stop} onChange={event => onChange(event.target.value)} />
-  if (field.kind === 'select') return <select value={String(field.value)} onPointerDown={stop} onChange={event => onChange(event.target.value)}>{field.options?.map(option => <option key={option}>{option}</option>)}</select>
-  if (field.kind === 'toggle') return <button type="button" className={`inline-toggle ${field.value ? 'on' : ''}`} onPointerDown={stop} onClick={() => onChange(!field.value)}><i />{field.value ? 'Enabled' : 'Disabled'}</button>
-  return <input type={field.kind === 'number' ? 'number' : 'text'} value={String(field.value)} min={field.min} max={field.max} step={field.step} placeholder={field.placeholder} onPointerDown={stop} onChange={event => onChange(field.kind === 'number' ? Number(event.target.value) : event.target.value)} />
-}
-
-function NodeCard({ node, selected, connecting, onSelect, onDragStart, onFieldChange, onPortClick }: {
-  node: StudioNode
-  selected: boolean
-  connecting: boolean
-  onSelect: () => void
-  onDragStart: (event: ReactPointerEvent<HTMLDivElement>) => void
-  onFieldChange: (key: string, value: string | number | boolean) => void
-  onPortClick: (side: 'input' | 'output') => void
-}) {
-  const Icon = icons[node.type]
-  const inlineFields = node.fields.slice(0, node.id === 'prompt' || node.title === 'Prompt Template' ? 2 : 2)
-  return <div className={`flow-node comfy-node ${node.type} ${node.status ?? ''} ${selected ? 'selected' : ''}`} style={{ left: node.x, top: node.y }} onPointerDown={onSelect}>
-    <div className="node-head node-drag-handle" onPointerDown={onDragStart}>
-      <span className="node-icon"><Icon /></span><div><strong>{node.title}</strong><small>{node.subtitle}</small></div><GripHorizontal className="drag-glyph" /><MoreHorizontal />
-    </div>
-    <div className="node-ports">
-      <button type="button" className="node-port-row input-row" onPointerDown={event => event.stopPropagation()} onClick={() => onPortClick('input')} disabled={!node.inputs.length}>
-        <i className="port in" /><span>{node.inputs.join(' · ') || 'NO INPUT'}</span>
-      </button>
-      <button type="button" className={`node-port-row output-row ${connecting ? 'connecting' : ''}`} onPointerDown={event => event.stopPropagation()} onClick={() => onPortClick('output')} disabled={!node.outputs.length}>
-        <span>{node.outputs.join(' · ') || 'NO OUTPUT'}</span><i className="port out" />
-      </button>
-    </div>
-    <div className="node-widgets">
-      {inlineFields.map(field => <label key={field.key}><span>{field.label}</span><InlineWidget field={field} onChange={value => onFieldChange(field.key, value)} /></label>)}
-    </div>
-  </div>
-}
-
-function ConfigField({ field, onChange }: { field: NodeField; onChange: (value: string | number | boolean) => void }) {
-  if (field.kind === 'textarea') return <label className="config-field"><span>{field.label}</span><textarea value={String(field.value)} placeholder={field.placeholder} onChange={event => onChange(event.target.value)} /></label>
-  if (field.kind === 'select') return <label className="config-field"><span>{field.label}</span><select value={String(field.value)} onChange={event => onChange(event.target.value)}>{field.options?.map(option => <option key={option}>{option}</option>)}</select></label>
-  if (field.kind === 'toggle') return <label className="config-toggle"><span><strong>{field.label}</strong><small>{field.value ? 'Enabled' : 'Disabled'}</small></span><button type="button" className={field.value ? 'on' : ''} onClick={() => onChange(!field.value)}><i /></button></label>
-  if (field.kind === 'range') return <label className="config-field"><span>{field.label}<em>{fieldSummary(field)}</em></span><input type="range" value={Number(field.value)} min={field.min} max={field.max} step={field.step} onChange={event => onChange(Number(event.target.value))} /></label>
-  return <label className="config-field"><span>{field.label}</span><input type={field.kind === 'number' ? 'number' : 'text'} value={String(field.value)} min={field.min} max={field.max} step={field.step} placeholder={field.placeholder} onChange={event => onChange(field.kind === 'number' ? Number(event.target.value) : event.target.value)} /></label>
+function Widget({ field, onChange }: { field: Field; onChange: (v: string | number | boolean) => void }) {
+  if (field.type === 'textarea') return <textarea value={String(field.value)} onChange={e => onChange(e.target.value)} />
+  if (field.type === 'select') return <select value={String(field.value)} onChange={e => onChange(e.target.value)}>{field.options?.map(o => <option key={o}>{o}</option>)}</select>
+  if (field.type === 'toggle') return <button className={`switch ${field.value ? 'on' : ''}`} onClick={() => onChange(!field.value)}><i /></button>
+  return <input type={field.type === 'number' ? 'number' : 'text'} value={String(field.value)} onChange={e => onChange(field.type === 'number' ? Number(e.target.value) : e.target.value)} />
 }
 
 export function WorkflowCanvas({ editable = false }: { editable?: boolean }) {
-  const [nodes, setNodes] = useState(initialNodes)
-  const [connections, setConnections] = useState(initialConnections)
+  const [nodes, setNodes] = useState(seeds)
+  const [edges, setEdges] = useState(seedEdges)
   const [selectedId, setSelectedId] = useState('train')
-  const [connectingFrom, setConnectingFrom] = useState<string | null>(null)
-  const [showLibrary, setShowLibrary] = useState(false)
-  const [search, setSearch] = useState('')
-  const [zoom, setZoom] = useState(editable ? 0.72 : 0.82)
-  const [pan, setPan] = useState({ x: 12, y: 10 })
-  const [isPanning, setIsPanning] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const canvasRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ id: string; pointerX: number; pointerY: number; nodeX: number; nodeY: number } | null>(null)
-  const panRef = useRef<{ pointerX: number; pointerY: number; panX: number; panY: number } | null>(null)
+  const [connecting, setConnecting] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(editable ? .68 : .78)
+  const [pan, setPan] = useState({ x: 18, y: 18 })
+  const [query, setQuery] = useState('')
+  const [running, setRunning] = useState(false)
+  const [saved, setSaved] = useState(true)
+  const drag = useRef<{ id: string; px: number; py: number; x: number; y: number } | null>(null)
+  const panning = useRef<{ px: number; py: number; x: number; y: number } | null>(null)
+  const canvas = useRef<HTMLDivElement>(null)
+  const selected = nodes.find(n => n.id === selectedId)
+  const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes])
+  const matches = library.filter(n => `${n.title} ${n.subtitle}`.toLowerCase().includes(query.toLowerCase()))
 
-  const selected = nodes.find(node => node.id === selectedId) ?? nodes[0]
-  const visibleTemplates = nodeTemplates.filter(template => `${template.title} ${template.subtitle}`.toLowerCase().includes(search.toLowerCase()))
+  const change = (id: string, key: string, value: Field['value']) => { setNodes(v => v.map(n => n.id === id ? { ...n, fields: n.fields.map(f => f.key === key ? { ...f, value } : f) } : n)); setSaved(false) }
+  const startDrag = (e: ReactPointerEvent, node: Node) => { e.stopPropagation(); drag.current = { id: node.id, px: e.clientX, py: e.clientY, x: node.x, y: node.y }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setSelectedId(node.id) }
+  const startPan = (e: ReactPointerEvent) => { if ((e.target as HTMLElement).closest('.studio-node,.canvas-ui')) return; panning.current = { px: e.clientX, py: e.clientY, x: pan.x, y: pan.y }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) }
+  const move = (e: ReactPointerEvent) => { if (drag.current) { const d = drag.current; setNodes(v => v.map(n => n.id === d.id ? { ...n, x: d.x + (e.clientX - d.px) / zoom, y: d.y + (e.clientY - d.py) / zoom } : n)); setSaved(false) } else if (panning.current) { const p = panning.current; setPan({ x: p.x + e.clientX - p.px, y: p.y + e.clientY - p.py }) } }
+  const end = () => { drag.current = null; panning.current = null }
+  const wheel = (e: ReactWheelEvent) => { e.preventDefault(); setZoom(v => Math.min(1.5, Math.max(.35, v * (e.deltaY < 0 ? 1.08 : .92)))) }
+  const addNode = (item: typeof library[number]) => { const id = `${item.kind}-${Date.now()}`; const fields: Field[] = item.kind === 'model' ? [{ key: 'model', label: '模型', type: 'select', value: models[0], options: models }] : item.kind === 'runtime' ? [{ key: 'runtime', label: 'Runtime', type: 'select', value: runtimes[0], options: runtimes }] : item.kind === 'compute' ? [{ key: 'gpu', label: 'GPU 规格', type: 'select', value: 'Auto · ≥24GB', options: ['Auto · ≥24GB', 'RTX PRO 6000 · 96GB'] }] : [{ key: 'name', label: '名称', type: 'text', value: item.title }]; setNodes(v => [...v, { id, kind: item.kind, title: item.title, subtitle: item.subtitle, x: 580, y: 360, inputs: item.kind === 'data' || item.kind === 'model' || item.kind === 'compute' ? [] : ['INPUT'], outputs: item.kind === 'output' ? [] : ['OUTPUT'], fields, state: 'ready' }]); setSelectedId(id); setSaved(false) }
+  const port = (node: Node, side: 'in' | 'out') => { if (side === 'out') return setConnecting(connecting === node.id ? null : node.id); if (connecting && connecting !== node.id) { setEdges(v => [...v, { from: connecting, to: node.id }]); setConnecting(null); setSaved(false) } }
+  const fit = () => { setZoom(.68); setPan({ x: 18, y: 18 }) }
 
-  const nodeMap = useMemo(() => new Map(nodes.map(node => [node.id, node])), [nodes])
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => fitView())
-    return () => window.cancelAnimationFrame(frame)
-    // The initial view only needs to fit once; later changes remain under user control.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  function updateField(nodeId: string, key: string, value: string | number | boolean) {
-    setNodes(current => current.map(node => node.id === nodeId ? { ...node, fields: node.fields.map(field => field.key === key ? { ...field, value } : field) } : node))
-    setSaved(false)
-  }
-
-  function startDrag(event: ReactPointerEvent<HTMLDivElement>, node: StudioNode) {
-    event.preventDefault()
-    event.stopPropagation()
-    setSelectedId(node.id)
-    dragRef.current = { id: node.id, pointerX: event.clientX, pointerY: event.clientY, nodeX: node.x, nodeY: node.y }
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  function moveDrag(event: ReactPointerEvent<HTMLDivElement>) {
-    const drag = dragRef.current
-    if (drag) {
-      const dx = (event.clientX - drag.pointerX) / zoom
-      const dy = (event.clientY - drag.pointerY) / zoom
-      setNodes(current => current.map(node => node.id === drag.id ? { ...node, x: Math.max(8, Math.min(1060, drag.nodeX + dx)), y: Math.max(8, Math.min(620, drag.nodeY + dy)) } : node))
-      return
-    }
-    const activePan = panRef.current
-    if (activePan) setPan({ x: activePan.panX + event.clientX - activePan.pointerX, y: activePan.panY + event.clientY - activePan.pointerY })
-  }
-
-  function endDrag() {
-    if (dragRef.current) setSaved(false)
-    dragRef.current = null
-    panRef.current = null
-    setIsPanning(false)
-  }
-
-  function startPan(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0 && event.button !== 1) return
-    const target = event.target as Element
-    if (target.closest('.comfy-node, .node-library-popover, .canvas-controls, .minimap, .connection-hint')) return
-    event.preventDefault()
-    panRef.current = { pointerX: event.clientX, pointerY: event.clientY, panX: pan.x, panY: pan.y }
-    setIsPanning(true)
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  function setZoomAt(nextZoom: number, clientX?: number, clientY?: number) {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const clampedZoom = Math.max(0.4, Math.min(1.6, nextZoom))
-    const rect = canvas.getBoundingClientRect()
-    const anchorX = (clientX ?? rect.left + rect.width / 2) - rect.left
-    const anchorY = (clientY ?? rect.top + rect.height / 2) - rect.top
-    const worldX = (anchorX - pan.x) / zoom
-    const worldY = (anchorY - pan.y) / zoom
-    setPan({ x: anchorX - worldX * clampedZoom, y: anchorY - worldY * clampedZoom })
-    setZoom(clampedZoom)
-  }
-
-  function handleWheel(event: ReactWheelEvent<HTMLDivElement>) {
-    event.preventDefault()
-    const factor = event.deltaY < 0 ? 1.1 : 0.9
-    setZoomAt(zoom * factor, event.clientX, event.clientY)
-  }
-
-  function fitView() {
-    const canvas = canvasRef.current
-    if (!canvas || !nodes.length) return
-    const minX = Math.min(...nodes.map(node => node.x))
-    const minY = Math.min(...nodes.map(node => node.y))
-    const maxX = Math.max(...nodes.map(node => node.x + 226))
-    const maxY = Math.max(...nodes.map(node => node.y + (node.id === 'prompt' || node.title === 'Prompt Template' ? 245 : 205)))
-    const boundsWidth = Math.max(1, maxX - minX)
-    const boundsHeight = Math.max(1, maxY - minY)
-    const padding = 34
-    const nextZoom = Math.max(0.4, Math.min(1.15, Math.min((canvas.clientWidth - padding * 2) / boundsWidth, (canvas.clientHeight - padding * 2) / boundsHeight)))
-    setZoom(nextZoom)
-    setPan({
-      x: (canvas.clientWidth - boundsWidth * nextZoom) / 2 - minX * nextZoom,
-      y: (canvas.clientHeight - boundsHeight * nextZoom) / 2 - minY * nextZoom,
-    })
-  }
-
-  function resetView() {
-    setZoom(1)
-    setPan({ x: 18, y: 18 })
-  }
-
-  function handlePort(node: StudioNode, side: 'input' | 'output') {
-    if (side === 'output') {
-      if (node.outputs.length) setConnectingFrom(current => current === node.id ? null : node.id)
-      return
-    }
-    if (!connectingFrom || connectingFrom === node.id || !node.inputs.length) return
-    setConnections(current => [...current, { id: `${connectingFrom}-${node.id}-${Date.now()}`, from: connectingFrom, to: node.id }])
-    setConnectingFrom(null)
-    setSaved(false)
-  }
-
-  function addNode(template: Omit<StudioNode, 'id' | 'x' | 'y'>) {
-    const suffix = Date.now().toString(36).slice(-5)
-    const node: StudioNode = { ...template, fields: template.fields.map(field => ({ ...field, options: field.options ? [...field.options] : undefined })), id: `${template.type}-${suffix}`, x: 420 + (nodes.length % 3) * 75, y: 90 + (nodes.length % 4) * 125 }
-    setNodes(current => [...current, node])
-    setSelectedId(node.id)
-    setShowLibrary(false)
-    setSaved(false)
-  }
-
-  function removeSelected() {
-    if (!selected || initialNodes.some(node => node.id === selected.id)) return
-    setNodes(current => current.filter(node => node.id !== selected.id))
-    setConnections(current => current.filter(connection => connection.from !== selected.id && connection.to !== selected.id))
-    setSelectedId('train')
-  }
-
-  function autoLayout() {
-    const positions = [
-      [28, 55], [28, 245], [28, 455], [330, 165], [330, 470], [645, 165], [930, 165],
-      [645, 430], [900, 430], [500, 55],
-    ]
-    setNodes(current => current.map((node, index) => ({ ...node, x: positions[index]?.[0] ?? 500 + index * 18, y: positions[index]?.[1] ?? 500 + index * 12 })))
-    setSaved(false)
-    window.requestAnimationFrame(() => fitView())
-  }
-
-  function saveWorkflow() {
-    setSaved(true)
-    window.setTimeout(() => setSaved(false), 1800)
-  }
-
-  return <section className={`workflow-panel panel comfy-workflow ${editable ? 'editable-canvas' : ''}`}>
-    <div className="workflow-toolbar">
-      <div><GitBranch /><div><strong>Qwen3 Fine-tuning</strong><span>Agent generated · autosaved</span></div></div>
-      <div>
-        {editable && <button className={showLibrary ? 'active' : ''} onClick={() => setShowLibrary(value => !value)}><Plus /> 添加节点</button>}
-        <button onClick={autoLayout}><CircleDot /> 自动布局</button>
-        {editable ? <button className={saved ? 'saved' : ''} onClick={saveWorkflow}>{saved ? <Check /> : <Save />}{saved ? '已保存' : '保存版本'}</button> : <button className="icon-button" title="适配全图" onClick={fitView}><Maximize2 /></button>}
+  return <section className={`flow-studio ${editable ? 'is-editable' : ''}`}>
+    <div className="flow-toolbar"><div><span className="live-dot" /> <strong>Qwen3 微调与部署</strong><em>{nodes.length} nodes · {edges.length} links</em></div><div><button><Sparkles /> Agent 生成</button><button onClick={() => setSaved(true)}>{saved ? <Check /> : <Save />} {saved ? '已保存' : '保存版本'}</button><button className="run-flow" onClick={() => setRunning(v => !v)}>{running ? <CircleDot /> : <Play />} {running ? '运行中 24%' : '运行工作流'}</button></div></div>
+    <div className="flow-body">
+      {editable && <aside className="node-rail"><div className="rail-head"><strong>节点</strong><button><Plus /></button></div><label><Search /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索节点" /></label><div className="rail-groups">{['输入', '模型', 'Runtime', '算力', '处理', '输出'].map(group => <section key={group}><span>{group}<ChevronDown /></span>{matches.filter(n => n.group === group).map((item, i) => { const Icon = icons[item.kind]; return <button key={`${item.title}-${i}`} onClick={() => addNode(item)}><i className={item.kind}><Icon /></i><b>{item.title}<small>{item.subtitle}</small></b><Plus /></button> })}</section>)}</div></aside>}
+      <div className="flow-canvas" ref={canvas} onPointerDown={startPan} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onWheel={wheel}>
+        <div className="flow-stage" style={{ transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})` }}><svg viewBox="0 0 1400 800">{edges.map((edge, i) => { const a = nodeMap.get(edge.from), b = nodeMap.get(edge.to); if (!a || !b) return null; const x1 = a.x + 254, y1 = a.y + 82, x2 = b.x, y2 = b.y + 70, bend = Math.max(70, Math.abs(x2 - x1) / 2); return <path key={`${edge.from}-${edge.to}-${i}`} d={`M${x1} ${y1} C${x1 + bend} ${y1},${x2 - bend} ${y2},${x2} ${y2}`} className={edge.from === 'train' ? 'active' : ''} /> })}</svg>
+          {nodes.map(node => { const Icon = icons[node.kind]; return <article key={node.id} className={`studio-node ${node.kind} ${selectedId === node.id ? 'selected' : ''}`} style={{ left: node.x, top: node.y }} onPointerDown={() => setSelectedId(node.id)}><header onPointerDown={e => startDrag(e, node)}><i><Icon /></i><div><strong>{node.title}</strong><small>{node.subtitle}</small></div><GripHorizontal /></header><div className="node-port-line"><button disabled={!node.inputs.length} onClick={() => port(node, 'in')}><i />{node.inputs.join(' · ') || 'SOURCE'}</button><button className={connecting === node.id ? 'linking' : ''} disabled={!node.outputs.length} onClick={() => port(node, 'out')}>{node.outputs.join(' · ') || 'SINK'}<i /></button></div><div className="node-fields">{node.fields.slice(0, 2).map(field => <label key={field.key}><span>{field.label}</span><Widget field={field} onChange={v => change(node.id, field.key, v)} /></label>)}</div>{node.state && <footer><i /> {node.state === 'running' ? 'Running' : node.state === 'queued' ? 'Queued' : 'Ready'}</footer>}</article> })}
+        </div>
+        {connecting && <div className="link-tip canvas-ui"><CircleDot /> 点击目标节点输入端口完成连线</div>}
+        <div className="canvas-zoom canvas-ui"><button onClick={() => setZoom(v => Math.max(.35, v - .1))}><ZoomOut /></button><button onClick={fit}>{Math.round(zoom * 100)}%</button><button onClick={() => setZoom(v => Math.min(1.5, v + .1))}><ZoomIn /></button><button onClick={fit}><Maximize2 /></button></div>
+        <div className="flow-minimap canvas-ui">{nodes.map(n => <i key={n.id} style={{ left: `${n.x / 15}%`, top: `${n.y / 9}%` }} />)}</div>
+        {running && <div className="run-console canvas-ui"><span><CircleDot /> RUN #NF-2084</span><strong>正在执行 Unsloth QLoRA</strong><em>GPU 91% · VRAM 42.6 / 96 GB · ETA 1h 42m</em><i><b /></i></div>}
       </div>
+      {editable && selected && <aside className="node-config"><header><div><span>节点配置</span><small>NODE INSPECTOR</small></div><button onClick={() => setSelectedId('')}><X /></button></header><div className="config-node-title"><i className={selected.kind}>{(() => { const I = icons[selected.kind]; return <I /> })()}</i><div><strong>{selected.title}</strong><small>{selected.subtitle} · {selected.id}</small></div></div><nav><button className="active">参数</button><button>输入/输出</button><button>文档</button></nav><div className="config-scroll"><section><span>节点参数</span>{selected.fields.map(field => <label key={field.key}><b>{field.label}</b><Widget field={field} onChange={v => change(selected.id, field.key, v)} /></label>)}</section><section><span>执行设置</span><label><b>执行策略</b><select defaultValue="agent"><option value="agent">Agent 托管</option><option value="manual">手动执行</option></select></label><label><b>失败策略</b><select defaultValue="retry"><option value="retry">诊断并重试</option><option value="stop">立即停止</option></select></label></section>{selected.kind === 'compute' && <div className="cost-card"><Cpu /><div><strong>预计 ¥8.6 / 小时</strong><small>队列等待约 2 分钟</small></div></div>}</div><footer><button onClick={() => { if (!seeds.some(n => n.id === selected.id)) setNodes(v => v.filter(n => n.id !== selected.id)) }}><Trash2 /> 删除</button><button onClick={() => setSaved(true)}><Save /> 应用配置</button></footer></aside>}
     </div>
-    <div className={`canvas ${isPanning ? 'is-panning' : ''}`} ref={canvasRef} onPointerDown={startPan} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onWheel={handleWheel}>
-      <div className="canvas-stage" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
-        <svg className="connectors" viewBox="0 0 1300 740" preserveAspectRatio="none">
-          {connections.map(connection => {
-            const from = nodeMap.get(connection.from)
-            const to = nodeMap.get(connection.to)
-            if (!from || !to) return null
-            const startX = from.x + 226
-            const startY = from.y + 82
-            const endX = to.x
-            const endY = to.y + 70
-            const bend = Math.max(55, Math.abs(endX - startX) * 0.46)
-            return <path key={connection.id} d={`M${startX} ${startY} C${startX + bend} ${startY} ${endX - bend} ${endY} ${endX} ${endY}`} className={connection.from === 'train' ? 'flowing' : ''} />
-          })}
-        </svg>
-        {nodes.map(node => <NodeCard
-          key={node.id}
-          node={node}
-          selected={node.id === selectedId}
-          connecting={connectingFrom === node.id}
-          onSelect={() => setSelectedId(node.id)}
-          onDragStart={event => startDrag(event, node)}
-          onFieldChange={(key, value) => updateField(node.id, key, value)}
-          onPortClick={side => handlePort(node, side)}
-        />)}
-      </div>
-      {showLibrary && <aside className="node-library-popover">
-        <header><div><Sparkles /><span><strong>Node Library</strong><small>添加可配置节点</small></span></div><button onClick={() => setShowLibrary(false)}><X /></button></header>
-        <label><Search /><input autoFocus value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索节点…" /></label>
-        <div>{visibleTemplates.map((template, index) => {
-          const Icon = icons[template.type]
-          return <button key={`${template.title}-${index}`} onClick={() => addNode(template)}><span className={`library-icon ${template.type}`}><Icon /></span><span><strong>{template.title}</strong><small>{template.subtitle}</small></span><Plus /></button>
-        })}</div>
-      </aside>}
-      {connectingFrom && <div className="connection-hint"><CircleDot /> 选择目标节点的输入端口 · Esc 取消</div>}
-      <div className="canvas-controls"><button title="缩小" onClick={() => setZoomAt(zoom - 0.1)}>−</button><button className="zoom-value" title="恢复 100%" onClick={resetView}>{Math.round(zoom * 100)}%</button><button title="放大" onClick={() => setZoomAt(zoom + 0.1)}>＋</button><button className="fit-view" title="适配全图" onClick={fitView}><Maximize2 /></button></div>
-      <div className="minimap"><div className="mini-map-inner">{nodes.map(node => <i key={node.id} style={{ left: `${Math.min(85, node.x / 13)}%`, top: `${Math.min(80, node.y / 8)}%` }} />)}</div></div>
-    </div>
-    {editable && selected && <aside className="node-inspector comfy-inspector">
-      <header><span>NODE CONFIGURATION</span><button title="关闭选择" onClick={() => setSelectedId('')}><X /></button></header>
-      <div className="inspector-title"><span className={`inspector-icon ${selected.type}`}>{(() => { const Icon = icons[selected.type]; return <Icon /> })()}</span><div><h3>{selected.title}</h3><p>{selected.subtitle} · {selected.id}</p></div></div>
-      <nav><button className="active">Parameters</button><button>Inputs</button><button>Docs</button></nav>
-      <div className="inspector-scroll">
-        <section><span className="config-section-title">NODE PARAMETERS</span>{selected.fields.map(field => <ConfigField key={field.key} field={field} onChange={value => updateField(selected.id, field.key, value)} />)}</section>
-        <section><span className="config-section-title">EXECUTION</span>
-          <label className="config-field"><span>Execution policy</span><select defaultValue="agent"><option value="agent">Agent managed</option><option value="manual">Manual</option></select></label>
-          <label className="config-field"><span>Failure strategy</span><select defaultValue="diagnose"><option value="diagnose">Diagnose & retry</option><option value="stop">Stop immediately</option></select></label>
-        </section>
-      </div>
-      <footer><button className="delete-node" onClick={removeSelected} disabled={initialNodes.some(node => node.id === selected.id)}><Trash2 /> 删除节点</button><button onClick={saveWorkflow}><Save /> 应用配置</button></footer>
-    </aside>}
+    {editable && <div className="flow-status"><span><i /> Kueue connected</span><span>GPU 配额 8 / 12</span><span>预计费用 ¥20.64</span><button><Rocket /> 发布为应用 / API</button></div>}
   </section>
 }

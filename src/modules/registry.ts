@@ -1,7 +1,7 @@
-import { Box, Cpu, Database, LayoutDashboard, Library, MessageSquareText, TerminalSquare, Workflow } from 'lucide-react'
+import { Boxes, Cpu, Database, LayoutGrid, MessageSquareText, TerminalSquare, Workflow } from 'lucide-react'
 import type { ModuleDefinition } from '../core/types'
 import { ArtifactsPage } from './artifacts/ArtifactsPage'
-import { DashboardPage } from './dashboard/DashboardPage'
+import { DiscoverPage } from './discover/DiscoverPage'
 import { JobsPage } from './jobs/JobsPage'
 import { ResourcesPage } from './resources/ResourcesPage'
 import { RuntimesPage } from './runtimes/RuntimesPage'
@@ -9,11 +9,11 @@ import { SessionsPage } from './sessions/SessionsPage'
 import { WorkflowsPage } from './workflows/WorkflowsPage'
 
 export const modules: ModuleDefinition[] = [
-  { id: 'dashboard', label: '控制台', section: 'workspace', icon: LayoutDashboard, component: DashboardPage },
-  { id: 'sessions', label: 'Agent 会话', section: 'workspace', icon: MessageSquareText, badge: '4', component: SessionsPage },
-  { id: 'workflows', label: '工作流', section: 'workspace', icon: Workflow, component: WorkflowsPage },
-  { id: 'jobs', label: '任务与运行', section: 'workspace', icon: TerminalSquare, badge: '3', component: JobsPage },
-  { id: 'resources', label: '算力资源', section: 'platform', icon: Cpu, component: ResourcesPage },
-  { id: 'runtimes', label: 'Runtime 市场', section: 'platform', icon: Library, component: RuntimesPage },
-  { id: 'artifacts', label: '数据与产物', section: 'platform', icon: Database, component: ArtifactsPage },
+  { id: 'dashboard', label: '探索广场', section: 'create', icon: LayoutGrid, component: DiscoverPage },
+  { id: 'workflows', label: '工作流', section: 'create', icon: Workflow, component: WorkflowsPage },
+  { id: 'runtimes', label: '模型与 Runtime', section: 'create', icon: Boxes, component: RuntimesPage },
+  { id: 'sessions', label: 'Agent 助手', section: 'create', icon: MessageSquareText, badge: '4', component: SessionsPage },
+  { id: 'jobs', label: '运行记录', section: 'manage', icon: TerminalSquare, badge: '3', component: JobsPage },
+  { id: 'artifacts', label: '数据与产物', section: 'manage', icon: Database, component: ArtifactsPage },
+  { id: 'resources', label: '算力资源', section: 'manage', icon: Cpu, component: ResourcesPage },
 ]
