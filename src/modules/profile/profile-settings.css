@@ -1,0 +1,11 @@
+.profile-platform-settings{display:flex;flex-direction:column;gap:12px}
+.platform-settings-toolbar{min-height:66px;padding:13px 16px;border:1px solid #293129;border-radius:8px;background:#111512;display:flex;align-items:center;justify-content:space-between}
+.platform-settings-toolbar>div{display:flex;flex-direction:column}
+.platform-settings-toolbar>div>span{color:var(--lime);font-size:7px;font-weight:800;letter-spacing:1.2px}
+.platform-settings-toolbar>div>strong{font-size:12px;margin-top:5px}
+.platform-settings-toolbar>div>small{color:#6f7b72;font-size:8px;margin-top:4px}
+.profile-settings-layout .settings-main{min-height:510px}
+:root[data-theme="light"] .platform-settings-toolbar{background:#fff;border-color:#c9d2ca}
+:root[data-theme="light"] .platform-settings-toolbar>div>strong{color:#172018}
+:root[data-theme="light"] .platform-settings-toolbar>div>small{color:#56635a}
+@media(max-width:920px){.platform-settings-toolbar{align-items:flex-start;gap:12px}.profile-tabs{overflow:auto}.profile-tabs button{white-space:nowrap}}

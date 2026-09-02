@@ -19,5 +19,5 @@ export const modules: ModuleDefinition[] = [
   { id: 'artifacts', label: '数据与产物', section: 'manage', icon: Database, component: ArtifactsPage },
   { id: 'resources', label: '算力资源', section: 'manage', icon: Cpu, component: ResourcesPage },
   { id: 'settings', label: '平台设置', section: 'manage', icon: Settings, hidden: true, component: SettingsPage },
-  { id: 'profile', label: '个人资料', section: 'manage', icon: UserRound, hidden: true, component: ProfilePage },
+  { id: 'profile', label: '个人设置', section: 'manage', icon: UserRound, hidden: true, component: ProfilePage },
 ]
