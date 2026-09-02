@@ -1,0 +1,12 @@
+import { Box, Clock3, Cpu, MoreHorizontal, Plus, Server, Thermometer, Zap } from 'lucide-react'
+import { useState } from 'react'
+import { gpuPools } from '../../mock'
+
+function Stat({ icon: Icon, label, value, detail }: { icon: typeof Cpu; label: string; value: string; detail: string }) {
+  return <div className="stat-card panel"><div className="stat-icon"><Icon/></div><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></div>
+}
+
+export function ResourcesPage() {
+  const [selected, setSelected] = useState(gpuPools[0].name)
+  return <div className="page-content"><div className="stats-row"><Stat icon={Cpu} label="GPU 总数" value="20" detail="16 正在使用"/><Stat icon={Zap} label="集群利用率" value="78%" detail="较昨日 +6.2%"/><Stat icon={Server} label="活跃任务" value="13" detail="4 个任务排队中"/><Stat icon={Clock3} label="本月用量" value="8,420h" detail="预算使用 64%"/></div><div className="resources-layout"><section className="resource-card panel"><div className="large-title"><div><strong>GPU Resource Pools</strong><span>跨集群统一算力视图</span></div><button><Plus/> 添加资源池</button></div>{gpuPools.map(pool=><button className={`pool-row ${selected === pool.name ? 'selected' : ''}`} onClick={() => setSelected(pool.name)} key={pool.name}><div className={`gpu-glyph ${pool.tone}`}><Cpu/></div><div className="pool-name"><strong>{pool.name}</strong><span>{pool.spec}</span></div><div className="nodes"><i/><span>{pool.total} Nodes</span></div><div className="pool-capacity"><div><span>使用率</span><strong>{pool.utilization}%</strong></div><div className="progress"><i style={{width:`${pool.utilization}%`}}/></div></div><div className="availability"><strong>{pool.total-pool.used}</strong><span>可用 / {pool.total} 总计</span></div><MoreHorizontal/></button>)}</section><aside className="node-panel panel"><div className="detail-head"><div><span>POOL DETAIL</span><h3>{selected}</h3></div><span className="online-dot">ONLINE</span></div><div className="node-visual"><Cpu /><i className="ring one"/><i className="ring two"/></div><div className="node-kpis"><div><Thermometer/><span>平均温度<strong>64°C</strong></span></div><div><Zap/><span>总功耗<strong>1.84 kW</strong></span></div><div><Box/><span>驱动版本<strong>590.12</strong></span></div></div><div className="allocation"><span>RESOURCE ALLOCATION</span><div><p><i className="violet"/>Unsloth jobs</p><strong>48%</strong></div><div><p><i className="green"/>Isaac workloads</p><strong>28%</strong></div><div><p><i className="blue"/>Available</p><strong>24%</strong></div></div></aside></div></div>
+}

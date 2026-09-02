@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nexus Compute — Static Preview</title>
+  <link rel="stylesheet" href="src/styles.css" />
+  <style>
+    .glyph{width:16px;text-align:center;font:14px "Segoe UI Symbol"}.brand-mark .glyph{z-index:2}.panel-title .glyph{color:#9a76ef}
+    .node-icon .glyph{font-size:15px}.header-actions .glyph{font-size:12px}.sidebar button{width:100%}
+    .preview-note{position:fixed;right:14px;bottom:12px;z-index:20;padding:6px 9px;border-radius:5px;background:#151922;border:1px solid #2b323d;color:#687382;font:7px monospace}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark"><span class="glyph">⬡</span><span></span></div><div><strong>NEXUS</strong><small>COMPUTE</small></div></div>
+    <nav>
+      <span class="nav-label">WORKSPACE</span>
+      <button class="active"><span class="glyph">▦</span>控制台</button>
+      <button><span class="glyph">◫</span>Agent 会话 <em>3</em></button>
+      <button><span class="glyph">⌘</span>工作流</button>
+      <button><span class="glyph">▣</span>任务与运行</button>
+      <span class="nav-label">PLATFORM</span>
+      <button><span class="glyph">▤</span>算力资源</button>
+      <button><span class="glyph">◈</span>Runtime 市场</button>
+      <button><span class="glyph">▱</span>数据与产物</button>
+    </nav>
+    <div class="sidebar-bottom"><button><span class="glyph">⚙</span>平台设置</button><div class="profile"><div class="avatar">YC</div><div><strong>Yun Chen</strong><span>Research Team</span></div><span>•••</span></div></div>
+  </aside>
+  <main>
+    <header class="header">
+      <div><span>Project / Embodied Intelligence</span><h1>Agent Workspace</h1></div>
+      <div class="header-actions"><div class="status-pill"><i></i> Cluster healthy</div><button class="icon-button"><span class="glyph">⌕</span></button><button class="icon-button notification"><span class="glyph">♢</span><b></b></button><button class="new-task"><span>＋</span> 新建任务</button></div>
+    </header>
+    <div class="workspace-grid">
+      <section class="chat-panel panel">
+        <div class="panel-title"><div><span class="glyph">✦</span><div><strong>Compute Agent</strong><span>Planning & orchestration</span></div></div><span>•••</span></div>
+        <div class="messages">
+          <div class="date-sep"><span>今天 09:54</span></div>
+          <div class="user-message">用 Qwen3-8B 对 train.jsonl 做一次 QLoRA。优先用空闲的 48G 以上 GPU，训练完成后跑评测，并导出 GGUF。</div>
+          <div class="agent-message"><div class="agent-icon"><span>✦</span></div><div class="agent-copy"><strong>已生成执行计划</strong><p>我选择了 <b>Unsloth QLoRA</b> Runtime，并为任务匹配到一张 RTX PRO 6000。</p>
+            <div class="plan-card"><div><span style="color:#52d3a3">✓</span> 数据集检查 <span>18,420 samples</span></div><div><span style="color:#52d3a3">✓</span> Runtime 配置 <span>unsloth:qwen3</span></div><div class="active-step"><span class="spinner"></span> 模型训练 <span>Step 1,284 / 3,600</span></div><div><span>◷</span> 评测与导出 <span>等待中</span></div></div>
+            <div class="agent-actions"><button id="pause">Ⅱ 暂停任务</button><button>查看完整计划</button></div>
+          </div></div>
+        </div>
+        <div class="composer"><textarea id="prompt" placeholder="告诉 Agent 你想完成什么…"></textarea><div><span>⌘ Enter 发送</span><button id="send">↑</button></div></div>
+      </section>
+      <section class="workflow-panel panel">
+        <div class="workflow-toolbar"><div><span class="glyph">⌘</span><div><strong>Qwen3 Fine-tuning</strong><span>Agent generated · autosaved</span></div></div><div><button>◉ 自动布局</button><button class="icon-button">⛶</button></div></div>
+        <div class="canvas">
+          <svg class="connectors" viewBox="0 0 1100 610" preserveAspectRatio="none"><path d="M225 200 C275 200 270 245 325 245"/><path d="M225 405 C275 405 270 260 325 260"/><path id="active-path" d="M515 250 C570 250 575 250 625 250" class="flowing"/><path d="M515 480 C570 480 565 285 625 270"/><path d="M815 250 C845 250 850 250 885 250"/></svg>
+          <div class="flow-node input ready" style="left:35px;top:135px"><div class="node-head"><span class="node-icon"><span class="glyph">▱</span></span><div><strong>Dataset</strong><small>输入数据</small></div><span>•••</span></div><div class="node-meta"><span>train.jsonl</span><span>18.4k samples</span></div><i class="port in"></i><i class="port out"></i></div>
+          <div class="flow-node input ready" style="left:35px;top:340px"><div class="node-head"><span class="node-icon"><span class="glyph">◇</span></span><div><strong>Qwen3 · 8B</strong><small>基础模型</small></div><span>•••</span></div><div class="node-meta"><span>BF16</span><span>HuggingFace</span></div><i class="port in"></i><i class="port out"></i></div>
+          <div class="flow-node runtime running" style="left:325px;top:185px"><div class="node-head"><span class="node-icon"><span class="glyph">✦</span></span><div><strong>Unsloth QLoRA</strong><small>训练 Runtime</small></div><span>•••</span></div><div class="node-meta"><span>rank 32 · alpha 64</span><span>3 epochs</span></div><i class="port in"></i><i class="port out"></i></div>
+          <div class="flow-node compute running" style="left:325px;top:420px"><div class="node-head"><span class="node-icon"><span class="glyph">▤</span></span><div><strong>RTX PRO 6000</strong><small>GPU Compute</small></div><span>•••</span></div><div class="node-meta"><span>1 × 96 GB</span><span>Priority · Normal</span></div><i class="port in"></i><i class="port out"></i></div>
+          <div class="flow-node task queued" style="left:625px;top:185px"><div class="node-head"><span class="node-icon"><span class="glyph">◉</span></span><div><strong>Evaluate</strong><small>模型评测</small></div><span>•••</span></div><div class="node-meta"><span>MMLU · C-Eval</span><span>Queued</span></div><i class="port in"></i><i class="port out"></i></div>
+          <div class="flow-node output queued" style="left:885px;top:185px"><div class="node-head"><span class="node-icon"><span class="glyph">□</span></span><div><strong>Export GGUF</strong><small>交付产物</small></div><span>•••</span></div><div class="node-meta"><span>Q4_K_M</span><span>Artifact Registry</span></div><i class="port in"></i><i class="port out"></i></div>
+          <div class="canvas-controls"><button>−</button><span>82%</span><button>＋</button></div><div class="minimap"><div class="mini-map-inner"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+        </div>
+      </section>
+      <aside class="metrics-panel panel">
+        <div class="panel-title"><div><span class="glyph" style="color:#53d3a3">⌁</span><div><strong>Live Run</strong><span>train-qwen3-8b-7f4</span></div></div><span id="run-status" class="run-status"><i></i>RUNNING</span></div>
+        <div class="progress-block"><div><span>总进度</span><strong>35.7%</strong></div><div class="progress"><i style="width:35.7%"></i></div><p>Step 1,284 / 3,600 · ETA 1h 42m</p></div>
+        <div class="metric-grid"><div><span>GPU UTIL</span><strong>94<small>%</small></strong><i class="spark">⌁⌁</i></div><div><span>VRAM</span><strong>71.8<small> GB</small></strong><p>of 96 GB</p></div><div><span>POWER</span><strong>438<small> W</small></strong><p>of 600 W</p></div><div><span>COST</span><strong>¥ 18.6</strong><p>¥8.5 / hour</p></div></div>
+        <div class="loss-chart"><div><span>Training loss</span><strong>1.36 <small>−18.4%</small></strong></div><svg viewBox="0 0 235 95"><defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8b5cf6" stop-opacity=".32"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></linearGradient></defs><polygon points="0,8 18,18 36,15 55,30 72,29 90,43 110,39 130,55 148,51 168,67 190,64 210,78 235,82 235,95 0,95" fill="url(#area)"/><polyline points="0,8 18,18 36,15 55,30 72,29 90,43 110,39 130,55 148,51 168,67 190,64 210,78 235,82" fill="none" stroke="#9b7af4" stroke-width="2"/></svg><div><span>09:58</span><span>10:42</span></div></div>
+        <div class="activity-feed"><div class="section-heading"><span>执行动态</span><button>全部</button></div><div class="activity-row"><i></i><div><strong>Checkpoint saved</strong><span>step-1240 · 4.8 GB</span></div><time>10:42:18</time></div><div class="activity-row"><i class="purple"></i><div><strong>Evaluation queued</strong><span>等待训练完成后自动执行</span></div><time>10:38:04</time></div><div class="activity-row"><i class="cyan"></i><div><strong>Training stable</strong><span>loss 1.82 → 1.36</span></div><time>10:24:51</time></div></div>
+      </aside>
+    </div>
+  </main>
+</div>
+<div class="preview-note">STATIC PREVIEW · MOCK DATA</div>
+<script>
+  const pause=document.getElementById('pause'), status=document.getElementById('run-status'), path=document.getElementById('active-path');let running=true;
+  pause.onclick=()=>{running=!running;pause.textContent=running?'Ⅱ 暂停任务':'▶ 继续任务';status.className='run-status'+(running?'':' paused');status.innerHTML='<i></i>'+(running?'RUNNING':'PAUSED');path.classList.toggle('flowing',running)};
+  document.getElementById('send').onclick=()=>{const input=document.getElementById('prompt');if(input.value.trim()){const message=document.createElement('div');message.className='user-message';message.textContent=input.value;document.querySelector('.messages').appendChild(message);input.value=''}};
+</script>
+</body>
+</html>
