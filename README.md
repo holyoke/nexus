@@ -1,5 +1,7 @@
 # Nexus Compute 前端原型
 
+> 项目协作规范见 [`AGENTS.md`](AGENTS.md)；产品定义、UI 约束和当前版本状态见 [`docs/`](docs/)。后续 Codex 任务应先读取这些文件，再修改原型。
+
 面向 Agent-native GPU Compute Platform 的模块化交互原型。当前使用 Mock 数据，已形成七个相互联动的产品模块：
 
 - 控制台：自然语言任务、执行计划、Workflow 画布、实时 GPU 指标
